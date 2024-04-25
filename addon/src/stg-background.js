@@ -4250,3 +4250,54 @@ setBrowserAction(undefined, 'loading', undefined, false);
 // etc.
 
 setTimeout(init, 200);
+
+
+
+
+
+const {groupsList}  = await onBackgroundMessage('get-groups-list', self);
+// await Utils.sendExternalMessage('get-groups-list');
+
+// Open new pinned tabs
+let tabId = {};
+
+browser.windows.getAll({populate: true}).then(windows => {
+    windows.forEach(windowInfo => prepareWindowGroupButtons(windowInfo));
+});
+
+// Listen for new window creation (TODO: Check why it's not working)
+browser.windows.onCreated.addListener(windowInfo => {
+    prepareWindowGroupButtons(windowInfo);
+    alert(`new window ${windowInfo.id} was created`);
+});
+
+function prepareWindowGroupButtons(windowInfo) {
+    // Close pinned tabs
+    windowInfo.tabs.forEach(tab => {
+        if (tab.pinned && tab.url == "about:blank") {
+            browser.tabs.remove(tab.id);
+        }
+    });
+
+    groupsList.forEach(group => {
+        browser.tabs.create({url: "about:blank", pinned: true, active: false, windowId: windowInfo.id}).then(tab => tabId[tab.id] = group.id);
+    });
+}
+
+async function handleActivated(activeInfo) {
+    if (tabId[activeInfo.tabId] !== undefined) {
+        let groupId = Number(tabId[activeInfo.tabId]);
+
+        const response = await onBackgroundMessage({ action: 'load-custom-group', groupId: groupId }, self);
+
+        if (!response.ok) {
+            Utils.notify('error', response.error);
+        }
+    }
+}
+
+browser.tabs.onActivated.addListener(handleActivated);
+
+
+
+    //return groupsList?.find(group => group.windowId === currentWindow.id);
